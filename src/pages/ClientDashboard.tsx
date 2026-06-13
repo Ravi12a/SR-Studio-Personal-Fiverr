@@ -54,6 +54,8 @@ export default function ClientDashboard() {
            fetchedGigs.push({ id: doc.id, ...doc.data() } as Gig);
          });
          setGigs(fetchedGigs);
+      }, (error) => {
+         console.error("Error fetching gigs in dashboard:", error);
       });
       
       return () => {
