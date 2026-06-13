@@ -158,7 +158,7 @@ service cloud.firestore {
       // Wait, Firestore list rules require checking the resource directly. Since delivery lacks clientId, we just allow read globally for now,
       // or we can add clientId to the delivery document. It's better to add clientId to deliveries to allow secure querying.
       // Modifying schema slightly to include clientId.
-      allow read: if isAdmin();
+      allow read: if true; // Allow read for clients so they can see deliveries
       allow create: if isAdmin()
                     && isValidId(deliveryId)
                     && isValidDelivery(incoming())

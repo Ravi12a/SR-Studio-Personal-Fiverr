@@ -21,12 +21,30 @@ export default function ClientDashboard() {
   const [shareGig, setShareGig] = useState<Gig | null>(null);
 
   useEffect(() => {
+    // Fetch Gigs for the dashboard display!
+    let unsubscribeGigs: () => void = () => {};
+    try {
+      const gigsQuery = query(collection(db, 'gigs'), orderBy('createdAt', 'desc'));
+      unsubscribeGigs = onSnapshot(gigsQuery, (querySnapshot) => {
+         const fetchedGigs: Gig[] = [];
+         querySnapshot.forEach((doc) => {
+           fetchedGigs.push({ id: doc.id, ...doc.data() } as Gig);
+         });
+         setGigs(fetchedGigs);
+      }, (error) => {
+         console.error("Error fetching gigs in dashboard:", error);
+      });
+    } catch(err) {
+       console.error(err);
+    }
+
     if (!user) {
       setLoading(false);
-      return;
+      return unsubscribeGigs;
     }
     
     // Fetch user orders
+    let unsubscribeOrders: () => void = () => {};
     try {
       const q = query(
         collection(db, 'orders'),
@@ -34,7 +52,7 @@ export default function ClientDashboard() {
         orderBy('createdAt', 'desc')
       );
       
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      unsubscribeOrders = onSnapshot(q, (querySnapshot) => {
         const fetchedOrders: Order[] = [];
         querySnapshot.forEach((doc) => {
           fetchedOrders.push({ id: doc.id, ...doc.data() } as Order);
@@ -46,25 +64,14 @@ export default function ClientDashboard() {
         setLoading(false);
       });
       
-      // Also fetch Gigs for the dashboard display!
-      const gigsQuery = query(collection(db, 'gigs'), orderBy('createdAt', 'desc'));
-      const unsubscribeGigs = onSnapshot(gigsQuery, (querySnapshot) => {
-         const fetchedGigs: Gig[] = [];
-         querySnapshot.forEach((doc) => {
-           fetchedGigs.push({ id: doc.id, ...doc.data() } as Gig);
-         });
-         setGigs(fetchedGigs);
-      }, (error) => {
-         console.error("Error fetching gigs in dashboard:", error);
-      });
-      
       return () => {
-         unsubscribe();
+         unsubscribeOrders();
          unsubscribeGigs();
       };
     } catch (error) {
        handleFirestoreError(error, OperationType.LIST, `orders`);
        setLoading(false);
+       return unsubscribeGigs;
     }
   }, [user]);
 

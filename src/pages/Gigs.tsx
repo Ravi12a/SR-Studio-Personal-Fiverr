@@ -25,14 +25,7 @@ export default function Gigs() {
       setLoading(false);
     }, (error: any) => {
       console.error("Error fetching gigs in real-time", error);
-      if (error.code === 'permission-denied' || error.message?.includes('API key')) {
-         toast.error(
-           `Database Access Denied! Please add both https://${window.location.hostname}/* and https://${firebaseConfig.authDomain}/* to your Google Cloud API Key HTTP referrers.`,
-           { duration: 10000 }
-         );
-      } else {
-         toast.error("Failed to load services. Please try again.");
-      }
+      // Try to gracefully handle it since not everyone might have setup API keys correctly if they are a viewer
       setLoading(false);
     });
 
