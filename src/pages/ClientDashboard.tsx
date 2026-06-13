@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react';
 import { collection, query, where, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Order, Delivery } from '../types';
+import { Order, Delivery, Gig } from '../types';
 import { useAuth } from '../lib/auth';
-import { Link } from 'react-router-dom';
-import { Package, Clock, CheckCircle2, AlertCircle, Download } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Package, Clock, CheckCircle2, AlertCircle, Download, Star, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
+import ShareGigModal from '../components/ShareGigModal';
 
 export default function ClientDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [activeDelivery, setActiveDelivery] = useState<string | null>(null);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  
+  const [gigs, setGigs] = useState<Gig[]>([]);
+  const [shareGig, setShareGig] = useState<Gig | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -21,6 +26,7 @@ export default function ClientDashboard() {
       return;
     }
     
+    // Fetch user orders
     try {
       const q = query(
         collection(db, 'orders'),
@@ -40,7 +46,20 @@ export default function ClientDashboard() {
         setLoading(false);
       });
       
-      return () => unsubscribe();
+      // Also fetch Gigs for the dashboard display!
+      const gigsQuery = query(collection(db, 'gigs'), orderBy('createdAt', 'desc'));
+      const unsubscribeGigs = onSnapshot(gigsQuery, (querySnapshot) => {
+         const fetchedGigs: Gig[] = [];
+         querySnapshot.forEach((doc) => {
+           fetchedGigs.push({ id: doc.id, ...doc.data() } as Gig);
+         });
+         setGigs(fetchedGigs);
+      });
+      
+      return () => {
+         unsubscribe();
+         unsubscribeGigs();
+      };
     } catch (error) {
        handleFirestoreError(error, OperationType.LIST, `orders`);
        setLoading(false);
@@ -145,6 +164,55 @@ export default function ClientDashboard() {
         </div>
       </div>
 
+      <div className="mt-16 mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-slate-100 pb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Available Studio Services</h2>
+          <p className="mt-2 text-slate-600">Select a premium service to get started securely.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {gigs.map((gig, index) => (
+          <div 
+            key={gig.id}
+            className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm group hover:shadow-md transition-shadow flex flex-col"
+          >
+            <div className="h-32 bg-slate-200 relative overflow-hidden">
+               <div className="absolute inset-0 bg-gradient-to-tr from-slate-800 to-slate-400 opacity-20 z-10 group-hover:opacity-10 transition-opacity"></div>
+               <div className="absolute top-3 right-3 px-2 py-1 bg-white/90 backdrop-blur rounded text-[10px] font-bold z-20">5.0 ★</div>
+               <button onClick={(e) => { e.preventDefault(); setShareGig(gig); }} className="absolute top-3 left-3 p-1.5 bg-white/90 backdrop-blur rounded-full text-slate-700 hover:text-indigo-600 z-20 transition-colors shadow-sm">
+                 <Share2 className="w-4 h-4" />
+               </button>
+               {gig.images && gig.images[0] ? (
+                 <img src={gig.images[0]} alt={gig.title} className="object-cover w-full h-full hover:scale-105 transition-transform duration-500 relative z-0" />
+               ) : (
+                 <div className="w-full h-full flex items-center justify-center text-slate-400 relative z-0">No Image</div>
+               )}
+            </div>
+            <div className="p-4 flex flex-col flex-grow">
+              <h2 className="font-bold text-slate-900 mb-1 leading-tight group-hover:text-indigo-600 line-clamp-2">{gig.title}</h2>
+              <p className="text-xs text-slate-500 line-clamp-2 mb-4 italic flex-grow">{gig.description}</p>
+              
+              <div className="flex justify-between items-center border-t border-slate-50 pt-3">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Starting at</span>
+                <span className="text-lg font-bold text-slate-900">₹{gig.price}</span>
+              </div>
+              <Link 
+                to={`/gig/${gig.id}`}
+                className="mt-4 w-full bg-white border-2 border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white px-4 py-2 rounded-xl text-center font-bold text-sm transition-colors"
+               >
+                 View Details
+               </Link>
+            </div>
+          </div>
+        ))}
+        {gigs.length === 0 && (
+          <div className="col-span-full py-20 text-center text-gray-500 text-lg bg-white rounded-2xl border border-gray-100 border-dashed">
+            No services currently available. Please check back later.
+          </div>
+        )}
+      </div>
+
       {activeDelivery && (
          <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -185,6 +253,10 @@ export default function ClientDashboard() {
              </div>
            </div>
          </div>
+      )}
+
+      {shareGig && (
+        <ShareGigModal gig={shareGig} onClose={() => setShareGig(null)} />
       )}
     </div>
   );
