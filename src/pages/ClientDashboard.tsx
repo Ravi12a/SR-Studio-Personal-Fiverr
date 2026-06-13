@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Package, Clock, CheckCircle2, AlertCircle, Download, Star, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
 import ShareGigModal from '../components/ShareGigModal';
+import toast from 'react-hot-toast';
 
 export default function ClientDashboard() {
   const { user } = useAuth();
@@ -31,8 +32,14 @@ export default function ClientDashboard() {
            fetchedGigs.push({ id: doc.id, ...doc.data() } as Gig);
          });
          setGigs(fetchedGigs);
-      }, (error) => {
+      }, (error: any) => {
          console.error("Error fetching gigs in dashboard:", error);
+         if (error.code === 'permission-denied' || error.message?.includes('API key')) {
+           toast.error(
+             `Netlify Warning: Please add https://${window.location.hostname} to your Google Cloud API Key HTTP referrers!`,
+             { duration: 10000, id: 'db-error-dash' }
+           );
+         }
       });
     } catch(err) {
        console.error(err);

@@ -25,7 +25,12 @@ export default function Gigs() {
       setLoading(false);
     }, (error: any) => {
       console.error("Error fetching gigs in real-time", error);
-      // Try to gracefully handle it since not everyone might have setup API keys correctly if they are a viewer
+      if (error.code === 'permission-denied' || error.message?.includes('API key')) {
+         toast.error(
+           `Netlify Warning: Please add https://${window.location.hostname} to your Google Cloud API Key HTTP referrers, otherwise database is blocked!`,
+           { duration: 10000, id: 'db-error' }
+         );
+      }
       setLoading(false);
     });
 
