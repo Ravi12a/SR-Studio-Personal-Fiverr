@@ -240,5 +240,11 @@ service cloud.firestore {
                     && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'imageUrl', 'tags']);
       allow delete: if isAdmin();
     }
+
+    // GIG SHARES
+    match /gigShares/{shareId} {
+      allow read: if isAdmin();
+      allow create: if true;
+    }
   }
 }

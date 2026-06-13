@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, getDocs, updateDoc, doc, addDoc, setDoc, deleteDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
+import firebaseConfig from '../../firebase-applet-config.json';
 import { Order, Gig } from '../types';
 import { useAuth } from '../lib/auth';
 import toast from 'react-hot-toast';
@@ -77,8 +78,14 @@ export default function AdminDashboard() {
         const fetchedGigs: Gig[] = [];
         gigsSnap.forEach((doc) => fetchedGigs.push({ id: doc.id, ...doc.data() } as Gig));
         setGigs(fetchedGigs);
-      }, (error) => {
+      }, (error: any) => {
         console.error(error);
+        if (error.code === 'permission-denied' || error.message?.includes('API key')) {
+           toast.error(
+             `Database Access Denied! Please add both https://${window.location.hostname}/* and https://${firebaseConfig.authDomain}/* to your Google Cloud API Key HTTP referrers.`,
+             { duration: 10000 }
+           );
+        }
       });
 
       const sharesQ = query(collection(db, 'gigShares'), orderBy('createdAt', 'desc'));

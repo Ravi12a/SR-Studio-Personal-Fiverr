@@ -102,8 +102,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         window.location.href = '/dashboard'; // Force redirect to buyer dashboard
       }
     } catch (error: any) {
-      if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+      if (error.code === 'auth/unauthorized-domain') {
+         toast.error(
+           `Domain not authorized! Please add ${window.location.hostname} to Firebase Console -> Authentication -> Settings -> Authorized Domains.`, 
+           { duration: 10000 }
+         );
+      } else if (error.message?.includes('API key') || error.code === 'permission-denied' || error.code === 'auth/api-key-not-valid') {
+         toast.error(
+           `API Key restricted! Ensure https://${firebaseConfig.authDomain}/* is allowed in Google Cloud.`,
+           { duration: 10000 }
+         );
+      } else if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
         console.error("Error signing in with Google", error);
+        toast.error(`Failed to sign in: ${error.message}`);
       }
     }
   };

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import firebaseConfig from '../../firebase-applet-config.json';
 import { Gig } from '../types';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, Star, Share2 } from 'lucide-react';
 import ShareGigModal from '../components/ShareGigModal';
+import toast from 'react-hot-toast';
 
 export default function Gigs() {
   const [gigs, setGigs] = useState<Gig[]>([]);
@@ -21,9 +23,16 @@ export default function Gigs() {
       });
       setGigs(gigsData);
       setLoading(false);
-    }, (error) => {
+    }, (error: any) => {
       console.error("Error fetching gigs in real-time", error);
-      handleFirestoreError(error, OperationType.LIST, 'gigs');
+      if (error.code === 'permission-denied' || error.message?.includes('API key')) {
+         toast.error(
+           `Database Access Denied! Please add both https://${window.location.hostname}/* and https://${firebaseConfig.authDomain}/* to your Google Cloud API Key HTTP referrers.`,
+           { duration: 10000 }
+         );
+      } else {
+         toast.error("Failed to load services. Please try again.");
+      }
       setLoading(false);
     });
 
