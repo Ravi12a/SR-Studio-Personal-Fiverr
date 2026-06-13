@@ -1,0 +1,151 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "client"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["email", "name", "role", "createdAt"]
+    },
+    "Gig": {
+      "title": "Gig",
+      "description": "A service offering",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "deliveryTime": { "type": "number" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "description", "price", "deliveryTime", "images", "features", "createdAt", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A client order for a gig",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "gigId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientEmail": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "projectTitle": { "type": "string" },
+        "projectDescription": { "type": "string" },
+        "additionalRequirements": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending Payment Verification", "In Progress", "Revision Requested", "Delivered", "Completed", "Cancelled"] },
+        "amount": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["clientId", "gigId", "clientName", "clientEmail", "clientPhone", "projectTitle", "projectDescription", "status", "amount", "createdAt", "updatedAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment verification details",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "screenshotUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["orderId", "clientId", "transactionId", "screenshotUrl", "status", "createdAt"]
+    },
+    "Delivery": {
+       "title": "Delivery",
+       "description": "Delivery files for an order",
+       "type": "object",
+       "properties": {
+         "orderId": { "type": "string" },
+         "fileUrls": { "type": "array", "items": { "type": "string" } },
+         "message": { "type": "string" },
+         "createdAt": { "type": "string" }
+       },
+       "required": ["orderId", "fileUrls", "createdAt"]
+    },
+    "Notification": {
+       "title": "Notification",
+       "type": "object",
+       "properties": {
+         "clientId": { "type": "string" },
+         "title": { "type": "string" },
+         "message": { "type": "string" },
+         "read": { "type": "boolean" },
+         "createdAt": { "type": "string" }
+       },
+       "required": ["clientId", "title", "message", "read", "createdAt"]
+    },
+    "Testimonial": {
+       "title": "Testimonial",
+       "type": "object",
+       "properties": {
+         "clientName": { "type": "string" },
+         "content": { "type": "string" },
+         "rating": { "type": "number" },
+         "projectId": { "type": "string" },
+         "featured": { "type": "boolean" },
+         "createdAt": { "type": "string" }
+       },
+       "required": ["clientName", "content", "rating", "featured", "createdAt"]
+    },
+    "Portfolio": {
+       "title": "Portfolio",
+       "type": "object",
+       "properties": {
+         "title": { "type": "string" },
+         "description": { "type": "string" },
+         "imageUrl": { "type": "string" },
+         "link": { "type": "string" },
+         "tags": { "type": "array", "items": { "type": "string" } },
+         "createdAt": { "type": "string" }
+       },
+       "required": ["title", "description", "imageUrl", "tags", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/gigs/{gigId}": {
+      "schema": { "$ref": "#/entities/Gig" },
+      "description": "Available gigs"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Client orders"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Payment verifications"
+    },
+    "/deliveries/{deliveryId}": {
+      "schema": { "$ref": "#/entities/Delivery" },
+      "description": "Order deliveries"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "User notifications"
+    },
+    "/testimonials/{testimonialId}": {
+      "schema": { "$ref": "#/entities/Testimonial" },
+      "description": "Client reviews"
+    },
+    "/portfolio/{portfolioId}": {
+      "schema": { "$ref": "#/entities/Portfolio" },
+      "description": "Portfolio items"
+    }
+  }
+}

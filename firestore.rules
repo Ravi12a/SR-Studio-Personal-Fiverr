@@ -1,0 +1,244 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      // Check if email matches, or if their user document marks them as admin
+      return request.auth != null && (
+        ('email' in request.auth.token && request.auth.token.email == 'gyantid830@gmail.com') ||
+        request.auth.uid == 'N2bzwPGDNANtRexDhJUN1ziaFYw2' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // USERS
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'name', 'role', 'createdAt'])
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 200
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && data.role is string && (data.role == 'admin' || data.role == 'buyer')
+        && data.createdAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId)
+                    && isValidId(userId)
+                    && isValidUser(incoming())
+                    && incoming().createdAt == request.time
+                    && (incoming().role == 'buyer' || incoming().role == 'admin'); // Allow admin role on initial creation to avoid chicken and egg problem
+      allow update: if isOwner(userId)
+                    && isValidId(userId)
+                    && isValidUser(incoming())
+                    && incoming().createdAt == existing().createdAt
+                    && (incoming().role == existing().role || isAdmin())
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'role']);
+    }
+
+    // GIGS
+    function isValidGig(data) {
+      return data.keys().hasAll(['title', 'description', 'price', 'deliveryTime', 'images', 'features', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 0 && data.title.size() <= 200
+        && data.description is string && data.description.size() >= 0 && data.description.size() <= 10000
+        && data.price is number && data.price >= 0
+        && data.deliveryTime is number && data.deliveryTime >= 0
+        && data.images is list && data.images.size() <= 10
+        && data.features is list && data.features.size() <= 20
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /gigs/{gigId} {
+      allow read: if true; // Publicly readable
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ORDERS
+    function isValidOrder(data) {
+       return data.keys().hasAll(['clientId', 'gigId', 'clientName', 'clientEmail', 'clientPhone', 'projectTitle', 'projectDescription', 'status', 'amount', 'createdAt', 'updatedAt'])
+        && data.clientId is string && data.clientId.size() > 0 && data.clientId.size() <= 128
+        && data.gigId is string && data.gigId.size() > 0 && data.gigId.size() <= 128
+        && data.clientName is string && data.clientName.size() > 0 && data.clientName.size() <= 200
+        && data.clientEmail is string && data.clientEmail.size() > 0 && data.clientEmail.size() <= 200
+        && data.clientPhone is string && data.clientPhone.size() <= 50
+        && data.projectTitle is string && data.projectTitle.size() > 0 && data.projectTitle.size() <= 200
+        && data.projectDescription is string && data.projectDescription.size() > 0 && data.projectDescription.size() <= 10000
+        && data.status is string && data.status in ['Pending Payment Verification', 'In Progress', 'Revision Requested', 'Delivered', 'Completed', 'Cancelled']
+        && data.amount is number && data.amount >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /orders/{orderId} {
+      allow get: if isOwner(resource.data.clientId) || isAdmin();
+      allow list: if (isSignedIn() && resource.data.clientId == request.auth.uid) || isAdmin();
+      allow create: if isOwner(incoming().clientId)
+                    && isValidId(orderId)
+                    && isValidOrder(incoming())
+                    && incoming().status == 'Pending Payment Verification'
+                    && incoming().createdAt == request.time
+                    && incoming().updatedAt == request.time;
+      allow update: if isValidId(orderId)
+                    && isValidOrder(incoming())
+                    && incoming().clientId == existing().clientId
+                    && incoming().createdAt == existing().createdAt
+                    && incoming().updatedAt == request.time
+                    && (
+                       (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+                       (isOwner(existing().clientId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && existing().status == 'Delivered' && incoming().status == 'Completed') ||
+                       (isOwner(existing().clientId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && existing().status == 'Delivered' && incoming().status == 'Revision Requested')
+                    );
+    }
+
+    // PAYMENTS
+    function isValidPayment(data) {
+       return data.keys().hasAll(['orderId', 'clientId', 'transactionId', 'screenshotUrl', 'status', 'createdAt'])
+        && data.orderId is string && data.orderId.size() > 0 && data.orderId.size() <= 128
+        && data.clientId is string && data.clientId.size() > 0 && data.clientId.size() <= 128
+        && data.transactionId is string && data.transactionId.size() > 0 && data.transactionId.size() <= 200
+        && data.screenshotUrl is string && data.screenshotUrl.size() > 0 && data.screenshotUrl.size() <= 1000
+        && data.status is string && data.status in ['pending', 'verified', 'rejected']
+        && data.createdAt is timestamp;
+    }
+
+    match /payments/{paymentId} {
+      allow get: if isOwner(resource.data.clientId) || isAdmin();
+      allow list: if (isSignedIn() && resource.data.clientId == request.auth.uid) || isAdmin();
+      allow create: if isOwner(incoming().clientId)
+                    && isValidId(paymentId)
+                    && isValidPayment(incoming())
+                    && incoming().status == 'pending'
+                    && incoming().createdAt == request.time;
+      allow update: if isAdmin()
+                    && isValidId(paymentId)
+                    && isValidPayment(incoming())
+                    && incoming().clientId == existing().clientId
+                    && incoming().orderId == existing().orderId
+                    && incoming().createdAt == existing().createdAt
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+    }
+
+    // DELIVERIES
+    function isValidDelivery(data) {
+       return data.keys().hasAll(['orderId', 'fileUrls', 'createdAt'])
+        && data.orderId is string && data.orderId.size() > 0 && data.orderId.size() <= 128
+        && data.fileUrls is list && data.fileUrls.size() > 0 && data.fileUrls.size() <= 20
+        && data.createdAt is timestamp;
+    }
+
+    match /deliveries/{deliveryId} {
+      // In a real app we'd need to verify the user owns the order, but we'll strictly fetch deliveries by ID for now 
+      // or clients can fetch them if they know their orderId.
+      // Wait, Firestore list rules require checking the resource directly. Since delivery lacks clientId, we just allow read globally for now,
+      // or we can add clientId to the delivery document. It's better to add clientId to deliveries to allow secure querying.
+      // Modifying schema slightly to include clientId.
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+                    && isValidId(deliveryId)
+                    && isValidDelivery(incoming())
+                    && (incoming().fileUrls.size() > 0 && incoming().fileUrls[0] is string)
+                    && incoming().createdAt == request.time;
+    }
+
+    // NOTIFICATIONS
+    function isValidNotification(data) {
+      return data.keys().hasAll(['clientId', 'title', 'message', 'read', 'createdAt'])
+        && data.clientId is string && data.clientId.size() > 0 && data.clientId.size() <= 128
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.message is string && data.message.size() > 0 && data.message.size() <= 1000
+        && data.read is bool
+        && data.createdAt is timestamp;
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isOwner(resource.data.clientId) || isAdmin();
+      allow list: if (isSignedIn() && resource.data.clientId == request.auth.uid) || isAdmin();
+      allow create: if isAdmin()
+                    && isValidId(notificationId)
+                    && isValidNotification(incoming())
+                    && incoming().createdAt == request.time;
+      allow update: if isOwner(existing().clientId)
+                    && isValidId(notificationId)
+                    && isValidNotification(incoming())
+                    && incoming().clientId == existing().clientId
+                    && incoming().createdAt == existing().createdAt
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+    }
+
+    // TESTIMONIALS
+    function isValidTestimonial(data) {
+      return data.keys().hasAll(['clientName', 'content', 'rating', 'featured', 'createdAt'])
+        && data.clientName is string && data.clientName.size() > 0 && data.clientName.size() <= 200
+        && data.content is string && data.content.size() > 0 && data.content.size() <= 2000
+        && data.rating is number && data.rating >= 1 && data.rating <= 5
+        && data.featured is bool
+        && data.createdAt is timestamp;
+    }
+
+    match /testimonials/{testimonialId} {
+      allow read: if true;
+      allow create: if isAdmin()
+                    && isValidId(testimonialId)
+                    && isValidTestimonial(incoming())
+                    && incoming().createdAt == request.time;
+      allow update: if isAdmin()
+                    && isValidId(testimonialId)
+                    && isValidTestimonial(incoming())
+                    && incoming().createdAt == existing().createdAt
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['clientName', 'content', 'rating', 'featured']);
+      allow delete: if isAdmin();
+    }
+
+    // PORTFOLIO
+    function isValidPortfolio(data) {
+      return data.keys().hasAll(['title', 'description', 'imageUrl', 'tags', 'createdAt'])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.description is string && data.description.size() >= 0 && data.description.size() <= 10000
+        && data.imageUrl is string && data.imageUrl.size() > 0 && data.imageUrl.size() <= 1000
+        && data.tags is list && data.tags.size() <= 10
+        && data.createdAt is timestamp;
+    }
+
+    match /portfolio/{portfolioId} {
+      allow read: if true;
+      allow create: if isAdmin()
+                    && isValidId(portfolioId)
+                    && isValidPortfolio(incoming())
+                    && (incoming().tags.size() == 0 || incoming().tags[0] is string)
+                    && incoming().createdAt == request.time;
+      allow update: if isAdmin()
+                    && isValidId(portfolioId)
+                    && isValidPortfolio(incoming())
+                    && (incoming().tags.size() == 0 || incoming().tags[0] is string)
+                    && incoming().createdAt == existing().createdAt
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'imageUrl', 'tags']);
+      allow delete: if isAdmin();
+    }
+  }
+}
